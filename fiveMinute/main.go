@@ -51,13 +51,18 @@ type ErrorResponse struct {
 	ErrString string
 }
 
+const stopStatus int = 2
+const idleStatus int = 3
+const abnormalStatus int = 4
+const runningStatus int = 5
+
 func init() {
 	orm.RegisterDataBase("default", "mysql", "root:82589155@tcp(10.10.10.100:3306)/iom5?charset=utf8")
 }
 
 func main() {
 	ginEngine().Run()
-	fmt.Println(getSectionsNumber(1581555000000, 1581558300000))
+	fmt.Println(getSectionsNumber(1581058200000, 1581061500000))
 	// fiveMinutesAnalyse("1581555000000", "1581558300000")
 }
 
@@ -79,6 +84,19 @@ func fiveMinutesAnalyseHandler(c *gin.Context) {
 		c.JSON(200, result)
 	}
 }
+
+// func ireallywantu(lastStatus Status, data *StatusData, val int64) {
+// 	switch lastStatus.Status {
+// 	case stopStatus:
+// 		data.StopTime += val
+// 	case idleStatus:
+// 		data.IdleTime += val
+// 	case abnormalStatus:
+// 		data.AbnormalTime += val
+// 	case runningStatus:
+// 		data.RunningTime += val
+// 	}
+// }
 
 func fiveMinutesAnalyse(start, end string) (fiveMinutesResult []FiveMinute, err error) {
 	o := orm.NewOrm()
@@ -125,94 +143,65 @@ func fiveMinutesAnalyse(start, end string) (fiveMinutesResult []FiveMinute, err 
 			return nil, err
 		}
 	} else {
-		err = errors.New("未來未來")
+		err = errors.New("no data")
 		return nil, err
 	}
 
 	var flag int
 	var previousStatusPoint Status
 	previousStatusPoint = lastStatus
-	const runningStatus int = 5
-	const stopStatus int = 2
-	const idleStatus int = 3
-	const abnormalStatus int = 4
-
 	for i, value := range statusArr {
-
+		var time int64
 		if len(value.statusData) == 0 {
 			if i == 0 && flag == 0 {
 				flag = 1
-			}
-			if flag == 0 {
+			} else if flag == 0 {
 				lastStatus = previousStatusPoint
 			}
-			switch lastStatus.Status {
-			case stopStatus:
-				statusArr[i].StopTime += fiveMin
-			case idleStatus:
-				statusArr[i].IdleTime += fiveMin
-			case abnormalStatus:
-				statusArr[i].AbnormalTime += fiveMin
-			case runningStatus:
-				statusArr[i].RunningTime += fiveMin
-			}
+			time = fiveMin
 		} else {
 			firstTimeStamp := value.statusData[0].Timestamp
-			firstTimeDuration := (firstTimeStamp - startTime) % fiveMin
-			if flag == 1 {
-				switch lastStatus.Status {
-				case stopStatus:
-					statusArr[i].StopTime += firstTimeDuration
-				case idleStatus:
-					statusArr[i].IdleTime += firstTimeDuration
-				case abnormalStatus:
-					statusArr[i].AbnormalTime += firstTimeDuration
-				case runningStatus:
-					statusArr[i].RunningTime += firstTimeDuration
-				}
-			}
-			switch previousStatusPoint.Status {
-			case stopStatus:
-				statusArr[i].StopTime += firstTimeDuration
-			case idleStatus:
-				statusArr[i].IdleTime += firstTimeDuration
-			case abnormalStatus:
-				statusArr[i].AbnormalTime += firstTimeDuration
-			case runningStatus:
-				statusArr[i].RunningTime += firstTimeDuration
-			}
-
-			for number := range statusArr[i].statusData {
-				if number == len(statusArr[i].statusData)-1 { //處理這段時間的最後一筆資料
-					tempEnd := startTime + fiveMin + fiveMin*int64(i)
-					lastStatusContinueTime := tempEnd - statusArr[i].statusData[number].Timestamp
-					switch statusArr[i].statusData[number].Status {
-					case stopStatus:
-						statusArr[i].StopTime += lastStatusContinueTime
-					case idleStatus:
-						statusArr[i].IdleTime += lastStatusContinueTime
-					case abnormalStatus:
-						statusArr[i].AbnormalTime += lastStatusContinueTime
-					case runningStatus:
-						statusArr[i].RunningTime += lastStatusContinueTime
-					}
-				} else {
-					switch statusArr[i].statusData[number].Status { //處理這段時間的所有資料除了最後一筆
-					case stopStatus:
-						statusArr[i].StopTime += statusArr[i].statusData[number+1].Timestamp - statusArr[i].statusData[number].Timestamp
-					case idleStatus:
-						statusArr[i].IdleTime += statusArr[i].statusData[number+1].Timestamp - statusArr[i].statusData[number].Timestamp
-					case abnormalStatus:
-						statusArr[i].AbnormalTime += statusArr[i].statusData[number+1].Timestamp - statusArr[i].statusData[number].Timestamp
-					case runningStatus:
-						statusArr[i].RunningTime += statusArr[i].statusData[number+1].Timestamp - statusArr[i].statusData[number].Timestamp
-					}
-				}
+			time = (firstTimeStamp - startTime) % fiveMin
+			if flag == 0 {
+				lastStatus = previousStatusPoint
 			}
 			previousStatusPoint = statusArr[i].statusData[len(statusArr[i].statusData)-1]
 			flag = 0
 		}
 
+		// ireallywantu(lastStatus, &value, time)
+
+		switch lastStatus.Status { //處理第一筆時間點之前的資料
+		case stopStatus:
+			statusArr[i].StopTime += time
+		case idleStatus:
+			statusArr[i].IdleTime += time
+		case abnormalStatus:
+			statusArr[i].AbnormalTime += time
+		case runningStatus:
+			statusArr[i].RunningTime += time
+		}
+
+		for number := range statusArr[i].statusData {
+			var time int64
+			if number == len(statusArr[i].statusData)-1 {
+				tempEnd := startTime + fiveMin + fiveMin*int64(i)
+				time = tempEnd - statusArr[i].statusData[number].Timestamp
+			} else {
+				time = statusArr[i].statusData[number+1].Timestamp - statusArr[i].statusData[number].Timestamp
+			}
+
+			switch statusArr[i].statusData[number].Status {
+			case stopStatus:
+				statusArr[i].StopTime += time
+			case idleStatus:
+				statusArr[i].IdleTime += time
+			case abnormalStatus:
+				statusArr[i].AbnormalTime += time
+			case runningStatus:
+				statusArr[i].RunningTime += time
+			}
+		}
 	}
 
 	for i := 0; i < len(statusArr); i++ {
@@ -250,7 +239,7 @@ func getSectionsNumber(start, end int64) (section int64) {
 }
 
 func getAlldataFromStatusTableInPeriodM01(start, end int64, o orm.Ormer) (dataArr []Status, err error) {
-	sql := "select * from iom5_data_status_m01 where timestamp>=? and timestamp <? order by timestamp asc"
+	sql := "select * from iom5_data_status_m02 where timestamp>=? and timestamp <? order by timestamp asc"
 	_, err = o.Raw(sql, start, end).QueryRows(&dataArr)
 	if err != nil {
 		return
@@ -259,7 +248,7 @@ func getAlldataFromStatusTableInPeriodM01(start, end int64, o orm.Ormer) (dataAr
 }
 
 func getLastStatusDataBeforeATime(start int64, o orm.Ormer) (lastStatus Status, err error) {
-	sql := "SELECT * FROM iom5_data_status_m01 where timestamp < ? order by timestamp desc limit 1;"
+	sql := "SELECT * FROM iom5_data_status_m02 where timestamp < ? order by timestamp desc limit 1;"
 	err = o.Raw(sql, start).QueryRow(&lastStatus)
 	if err != nil {
 		return
