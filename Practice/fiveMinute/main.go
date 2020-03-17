@@ -85,18 +85,20 @@ func fiveMinutesAnalyseHandler(c *gin.Context) {
 	}
 }
 
-// func ireallywantu(lastStatus Status, data *StatusData, val int64) {
-// 	switch lastStatus.Status {
-// 	case stopStatus:
-// 		data.StopTime += val
-// 	case idleStatus:
-// 		data.IdleTime += val
-// 	case abnormalStatus:
-// 		data.AbnormalTime += val
-// 	case runningStatus:
-// 		data.RunningTime += val
-// 	}
-// }
+func ireallywantu(lastStatus Status, data *StatusData, val int64) {
+
+	switch lastStatus.Status {
+	case stopStatus:
+		data.StopTime += val
+	case idleStatus:
+		data.IdleTime += val
+	case abnormalStatus:
+		data.AbnormalTime += val
+	case runningStatus:
+		data.RunningTime += val
+	}
+
+}
 
 func fiveMinutesAnalyse(start, end string) (fiveMinutesResult []FiveMinute, err error) {
 	o := orm.NewOrm()
@@ -169,18 +171,7 @@ func fiveMinutesAnalyse(start, end string) (fiveMinutesResult []FiveMinute, err 
 			flag = 0
 		}
 
-		// ireallywantu(lastStatus, &value, time)
-
-		switch lastStatus.Status { //處理第一筆時間點之前的資料
-		case stopStatus:
-			statusArr[i].StopTime += time
-		case idleStatus:
-			statusArr[i].IdleTime += time
-		case abnormalStatus:
-			statusArr[i].AbnormalTime += time
-		case runningStatus:
-			statusArr[i].RunningTime += time
-		}
+		ireallywantu(lastStatus, &statusArr[i], time)
 
 		for number := range statusArr[i].statusData {
 			var time int64
@@ -191,16 +182,7 @@ func fiveMinutesAnalyse(start, end string) (fiveMinutesResult []FiveMinute, err 
 				time = statusArr[i].statusData[number+1].Timestamp - statusArr[i].statusData[number].Timestamp
 			}
 
-			switch statusArr[i].statusData[number].Status {
-			case stopStatus:
-				statusArr[i].StopTime += time
-			case idleStatus:
-				statusArr[i].IdleTime += time
-			case abnormalStatus:
-				statusArr[i].AbnormalTime += time
-			case runningStatus:
-				statusArr[i].RunningTime += time
-			}
+			ireallywantu(statusArr[i].statusData[number], &statusArr[i], time)
 		}
 	}
 
